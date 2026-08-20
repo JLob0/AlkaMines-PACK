@@ -41,24 +41,37 @@ public class TrajectoryTask implements Runnable {
     @Override
     public void run() {
         if (currentTick >= durationTicks) {
-            dragon.destroy();
-            if (bukkitTask != null) {
-                bukkitTask.cancel();
-            }
-            onComplete.run();
+            // Tudo na main thread: destroy (pacotes) + cancel + onComplete. O onComplete
+            // chama endSession -> flush do RewardBatcher -> AlkaDrop, que dispara
+            // DropCollectedEvent (so pode rodar sync) - fora da main thread da crash.
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                dragon.destroy();
+                if (bukkitTask != null) {
+                    bukkitTask.cancel();
+                }
+                onComplete.run();
+            });
+            return;
+        }
+
+        // Verificacoes ANTES de agendar - evita task desnecessaria se o dragao ja morreu.
+        if (!dragon.isSpawned() || !dragon.getTargetPlayer().isOnline()) {
+            currentTick++;
             return;
         }
 
         double t = currentTick / (double) durationTicks;
         Vector pos = trajectory.calculate(t);
-        Vector tangent = trajectory.getTangent(t);
+        Vector tangent = trajectory.getTangent(t).normalize();
         float[] rot = BezierTrajectory.getYawPitch(tangent);
         Location newLoc = new Location(world, pos.getX(), pos.getY(), pos.getZ(), rot[0], rot[1]);
 
         // SO o envio do pacote e sync; todo o calculo acima foi async.
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (dragon.isSpawned() && dragon.getTargetPlayer().isOnline()) {
-                dragon.teleport(newLoc);
+                dragon.setRealDirection(tangent);
+                // movimento relativo (REL_ENTITY_MOVE_LOOK) - mais estavel na 1.21.8
+                dragon.teleportRelative(newLoc);
             }
         });
 

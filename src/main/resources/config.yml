@@ -182,11 +182,11 @@ abilities:
     cooldown-seconds: 60
     max-duration-ticks: 400
     trajectory:
-      radius: 30.0
-      height: 40.0
+      radius: 20.0
+      height: 15.0
       duration-ticks: 200
     breath:
-      range: 25
+      range: 35
       check-interval-ticks: 2
       particles-per-check: 15
     regeneration:

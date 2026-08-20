@@ -1,107 +1,108 @@
+<div align="center">
+
 # AlkaMinesPack
 
-Fork do **AlkaMines** com o módulo de **Habilidade do Dragão** (`/mina dragao`). É um plugin
-autônomo de minas/prison — quem roda ele **não** roda o AlkaMines original (são plugins
-separados, mesmo `main` class `com.alka.mines.AlkaMines`, um OU outro na pasta `plugins/`).
+### Minas prison + Habilidade do Dragão
 
-Baseado no AlkaMines existente em produção (github.com/JLob0/AlkaMines) e no core
-[AlkaCore](github.com/JLob0/AlkaCore).
+Fork do AlkaMines com a Habilidade do Dragão (100% client-side via ProtocolLib). Plug-in
+autônomo de minas/prison — quem roda ele não roda o AlkaMines original (um OU outro).
 
-## Recursos
+![Java](https://img.shields.io/badge/Java-21-orange)
+![Minecraft](https://img.shields.io/badge/Minecraft-1.21.8-green)
+![Version](https://img.shields.io/badge/Version-1.0.0-blue)
+![License](https://img.shields.io/badge/License-Proprietary-red)
+
+</div>
+
+---
+
+## 📋 Sobre o Projeto
+
+Sistema de minas/prison com seleção via WorldEdit, reset em massa via FAWE, hologramas,
+GUIs, minas públicas e particulares, sistema de picareta com níveis — e a **Habilidade do
+Dragão**, que invoca um Ender Dragon fake voando em curva de Bézier sobre a mina, queimando
+blocos em área (visualmente, via pacotes) e acumulando drops para venda/entrega em lote.
+
+Baseado no [AlkaMines](https://github.com/JLob0/AlkaMines) e no core
+[AlkaCore](https://github.com/JLob0/AlkaCore).
+
+## ✨ Funcionalidades Principais
 
 - Minas públicas (reset sync via `BlockFillHook`, índice por chunk O(1))
 - Minas particulares (PlotSquared, expansão volumétrica, schematics FAWE)
 - Sistema de picareta com níveis (PlayerDataManager → banco AlkaCore)
 - GUIs via `BaseGui` do AlkaCore
-- **Habilidade do Dragão** (client-side, trajetória matemática, cache Caffeine):
-  - Entidade fake ENDER_DRAGON 100% client-side via **ProtocolLib** (o servidor nunca
-    sabe que ela existe — nenhum `world.spawnEntity()`).
-  - Trajetória por curvas de **Bézier cúbicas** (círculo, mergulho, sweep).
-  - Raycast do bafo que quebra blocos **visualmente** (pacotes) em área, acumulando
-    drops num `RewardBatcher` e vendendo/entregando em lote no fim.
-  - **Cache Caffeine** O(1) por chunk dos blocos de composição das minas (read-only).
-  - Regeneração automática dos blocos queimados.
-  - Cooldown, permissão, 1 sessão por jogador e cleanup garantido (quit/disable).
+- **Habilidade do Dragão** (`/mina dragao`):
+  - Entidade fake ENDER_DRAGON 100% client-side via ProtocolLib (nenhum `world.spawnEntity()`)
+  - Trajetória por curvas de Bézier cúbicas (círculo, mergulho, sweep)
+  - Bafo que quebra blocos visualmente em área e acumula drops num `RewardBatcher`
+  - Cache Caffeine O(1) por chunk dos blocos de composição (read-only)
+  - Regeneração automática dos blocos queimados
+  - Cooldown, permissão, 1 sessão por jogador e cleanup garantido (quit/disable)
 
-## Requisitos
+## 🎮 Comandos
 
-| Dependência | Tipo | Motivo |
+| Comando | Descrição | Permissão |
 |---|---|---|
-| [AlkaCore](https://github.com/JLob0/AlkaCore) | `depend` | DB, mensagens, GUIs, scheduler |
-| FastAsyncWorldEdit (FAWE) | `depend` | seleção + reset em massa |
-| **ProtocolLib 5.4+** | `softdepend` | entidades/pacotes client-side |
-| AlkaShop / AlkaDrop | `softdepend` | auto-venda e coleta dos drops |
+| `/mina dragao` | Invoca a Habilidade do Dragão na mina atual | `alkamines.ability.dragon` |
+| `/mina debug ability` | Sessões/entidades/tasks ativas | `op` |
+| `/mina debug cache` | Estatísticas do cache Caffeine | `op` |
+| `/mina debug stress <n>` | Simula N dragões por ~30s e reporta TPS/heap | `op` |
+| `/alkamines ...` | Comandos administrativos originais | `alkaminas.admin.*` |
+| `/mina ir\|sair\|lista\|ranking\|particular ...` | Comandos de jogador originais | — |
 
-Java 21+.
+## 🔗 Integrações
 
-## Build
+| Integração | Tipo |
+|---|---|
+| [AlkaCore](https://github.com/JLob0/AlkaCore) | `depend` (DB, mensagens, GUIs, scheduler) |
+| FastAsyncWorldEdit (FAWE) | `depend` (seleção + reset em massa) |
+| ProtocolLib 5.4+ | `softdepend` (entidades/pacotes client-side) |
+| AlkaShop / AlkaDrop | `softdepend` (auto-venda e coleta dos drops) |
 
-```bash
-./gradlew clean build
-```
+## 🔧 Tecnologias Utilizadas
 
-O jar sai em `build/libs/AlkaMinesPack-1.0.0.jar` (Caffeine embutido/shaded; ProtocolLib
-fica de fora, vem do servidor).
+- Java 21 / Paper 1.21.8
+- ProtocolLib (pacotes client-side)
+- Caffeine (cache O(1))
+- AlkaCore (infraestrutura)
+- FastAsyncWorldEdit (reset em massa)
 
-## Instalação
+## ⚙️ Instalação
 
 1. Copie `AlkaMinesPack-1.0.0.jar` para `plugins/`.
-2. **Remova qualquer `AlkaMines*.jar`** da pasta — é um OU outro.
+2. **Remova qualquer `AlkaMines*.jar`** da pasta — é um OU outro (mesmo `main` class).
 3. Garanta o ProtocolLib instalado.
 4. Reinicie o servidor (não use `/reload`).
-5. Dê a permissão `alkamines.ability.dragon` aos jogadores.
+5. Conceda a permissão `alkamines.ability.dragon`.
 
-## Comandos
+Build: `./gradlew clean build` → jar em `build/libs/` (Caffeine embutido; ProtocolLib vem do servidor).
 
-- `/mina dragao` — invoca a habilidade do Dragão na mina atual (pública ou particular).
-- `/mina debug ability` — sessões/entidades/tasks ativas (OP).
-- `/mina debug cache` — estatísticas do cache Caffeine (hits/misses/tamanho) (OP).
-- `/mina debug stress <n>` — simula N dragões por ~30s e reporta TPS/heap (OP).
-- Os comandos originais do AlkaMines continuam: `/alkamines ...`, `/mina ir|sair|lista|ranking|particular ...`.
+## 🔐 Permissões
 
-## Configuração
+| Permissão | Descrição | Padrão |
+|---|---|---|
+| `alkamines.ability.dragon` | Usar `/mina dragao` | `false` |
+| `alkaminas.admin.*` | Comandos administrativos | `op` |
 
-`config.yml` (seção da habilidade):
+## 📝 Licença
 
-```yaml
-abilities:
-  dragon_breath:
-    enabled: true
-    permission: "alkamines.ability.dragon"
-    cooldown-seconds: 60
-    max-duration-ticks: 400
-    trajectory:
-      radius: 30.0
-      height: 40.0
-      duration-ticks: 200
-    breath:
-      range: 25
-      check-interval-ticks: 2
-      particles-per-check: 15
-    regeneration:
-      enabled: true
-      delay-ticks: 100
-```
+> ⚠️ **Projeto proprietário da AlkaStudio.**
+>
+> Código fonte destinado exclusivamente ao uso interno da rede `Alka*`.
+> Reprodução, distribuição ou uso não autorizado não são permitidos.
 
-Mensagens de chat em `messages.yml` (seção `mines.ability.*`).
+## 🎯 Créditos
 
-## Estrutura do módulo
+- Base original: [AlkaMines](https://github.com/JLob0/AlkaMines)
+- Core: [AlkaCore](https://github.com/JLob0/AlkaCore)
 
-```
-com.alka.mines
-├── ability/   DragonBreathAbility, DragonBreathTask, MineAbilityRegenerator
-├── cache/     MineCache (Caffeine), MineBlockData, CachedMineKey
-├── entity/    FakeDragonEntity, FakeEntityRegistry
-├── packet/    PacketFactory (ProtocolLib)
-├── reward/    RewardBatcher (extraído do MineBreakListener)
-├── trajectory/ BezierTrajectory, TrajectoryFactory, TrajectoryTask
-└── lifecycle/ TaskManager, MineAbilitySession, MineAbilitySessionManager
-```
+---
 
-## Anti-padrões evitados
+<div align="center">
 
-- NUNCA `world.spawnEntity()` — o dragão é 100% client-side.
-- NUNCA modificar o `MineCache` após o load — ele é read-only.
-- NUNCA deixar sessão sem `endSession()` — sempre há caminho de cleanup.
-- NUNCA enviar pacotes para jogador offline.
-- Matemática da trajetória em thread async; só o envio de pacotes é sync.
+**Desenvolvido com ❤️ pela AlkaStudio**
+
+[![AlkaStudio](https://img.shields.io/badge/AlkaStudio-JLob0-blue)](https://github.com/JLob0)
+
+</div>

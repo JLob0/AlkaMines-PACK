@@ -1,5 +1,6 @@
 package com.alka.mines.packet;
 
+import com.alka.mines.util.DebugLogger;
 import com.comphenix.protocol.PacketType;
 import com.comphenix.protocol.ProtocolLibrary;
 import com.comphenix.protocol.ProtocolManager;
@@ -29,7 +30,8 @@ import java.util.stream.Collectors;
  * compativel). Usado pelas entidades fake client-side e pela habilidade do dragao.
  *
  * Nenhum metodo aqui envolve em try-catch generico de proposito - excecoes sobem pro
- * caller logar. Todos verificam {@link Player#isOnline()} antes de enviar.
+ * caller logar. Todos verificam {@link Player#isOnline()} antes de enviar. Logs de
+ * debug (ligados via config.yml debug: true) ajudam a rastrear qual pacote foi enviado.
  */
 public final class PacketFactory {
 
@@ -40,33 +42,55 @@ public final class PacketFactory {
         return ProtocolLibrary.getProtocolManager();
     }
 
-    /** Spawn de uma entidade viva client-side (ENDER_DRAGON). Yaw/Pitch em angulo de 1/256. */
+    /** Spawn de uma entidade viva client-side (ENDER_DRAGON). Preenche TODOS os campos
+     * exigidos pelo SPAWN_ENTITY unificado (1.20.2+): velocity, headYaw e data. */
     public static void sendSpawnLivingEntity(Player target, int entityId, UUID entityUuid, EntityType type, Location location) {
         if (!target.isOnline()) {
             return;
         }
+        DebugLogger.log("PacketFactory: SPAWN_ENTITY id=%d tipo=%s para %s", entityId, type, target.getName());
+
         PacketContainer packet = new PacketContainer(PacketType.Play.Server.SPAWN_ENTITY);
+        // Integers: [0]=entityId, [1]=data (VarInt). Velocity e um trio de shorts.
         packet.getIntegers().write(0, entityId);
+        if (packet.getIntegers().size() > 1) {
+            packet.getIntegers().write(1, 0); // entity data (0 = nenhum dado extra)
+        }
         packet.getUUIDs().write(0, entityUuid);
         packet.getEntityTypeModifier().write(0, type);
         packet.getDoubles().write(0, location.getX());
         packet.getDoubles().write(1, location.getY());
         packet.getDoubles().write(2, location.getZ());
-        packet.getBytes().write(0, (byte) (location.getYaw() * 256.0F / 360.0F));
-        packet.getBytes().write(1, (byte) (location.getPitch() * 256.0F / 360.0F));
+
+        byte yaw = (byte) (location.getYaw() * 256.0F / 360.0F);
+        byte pitch = (byte) (location.getPitch() * 256.0F / 360.0F);
+        // Bytes: [0]=yaw, [1]=pitch, [2]=headYaw
+        packet.getBytes().write(0, yaw);
+        packet.getBytes().write(1, pitch);
+        if (packet.getBytes().size() > 2) {
+            packet.getBytes().write(2, yaw); // headYaw = yaw para entidades voadoras
+        }
+        // Velocity (shorts) - zerado, entidade estatica
+        if (packet.getShorts().size() >= 3) {
+            packet.getShorts().write(0, (short) 0);
+            packet.getShorts().write(1, (short) 0);
+            packet.getShorts().write(2, (short) 0);
+        }
         manager().sendServerPacket(target, packet);
     }
 
-    /** Metadata da entidade: index 0 = flags Byte, index 15 = dragonPhase (10 = voo circular). */
+    /** Metadata da entidade: index 0 = flags Byte, index 16 = dragonPhase (10 = voo circular). */
     public static void sendEntityMetadata(Player target, int entityId, byte flags, int dragonPhase) {
         if (!target.isOnline()) {
             return;
         }
+        DebugLogger.log("PacketFactory: ENTITY_METADATA id=%d fase=%d para %s", entityId, dragonPhase, target.getName());
+
         PacketContainer packet = new PacketContainer(PacketType.Play.Server.ENTITY_METADATA);
         packet.getIntegers().write(0, entityId);
         List<WrappedDataValue> values = new ArrayList<>();
         values.add(new WrappedDataValue(0, WrappedDataWatcher.Registry.get(Byte.class), flags));
-        values.add(new WrappedDataValue(15, WrappedDataWatcher.Registry.get(Integer.class), dragonPhase));
+        values.add(new WrappedDataValue(16, WrappedDataWatcher.Registry.get(Integer.class), dragonPhase));
         packet.getDataValueCollectionModifier().write(0, values);
         manager().sendServerPacket(target, packet);
     }
@@ -94,14 +118,41 @@ public final class PacketFactory {
         manager().sendServerPacket(target, packet);
     }
 
-    /** Destroi uma ou mais entidades client-side. */
+    /** Movimento relativo + rotacao (REL_ENTITY_MOVE_LOOK). Mais estavel que o
+     * ENTITY_TELEPORT na 1.21.2+. Deltas em unidades de 1/4096 de bloco. */
+    public static void sendEntityMoveLook(Player target, int entityId,
+                                          short deltaX, short deltaY, short deltaZ, byte yaw, byte pitch) {
+        if (!target.isOnline()) {
+            return;
+        }
+        PacketContainer packet = new PacketContainer(PacketType.Play.Server.REL_ENTITY_MOVE_LOOK);
+        packet.getIntegers().write(0, entityId);
+        packet.getShorts().write(0, deltaX);
+        packet.getShorts().write(1, deltaY);
+        packet.getShorts().write(2, deltaZ);
+        packet.getBytes().write(0, yaw);
+        packet.getBytes().write(1, pitch);
+        if (packet.getBooleans().size() > 0) {
+            packet.getBooleans().write(0, false); // onGround = false (voando)
+        }
+        manager().sendServerPacket(target, packet);
+    }
+
+    /** Destroi uma ou mais entidades client-side (intLists com fallback pra integerArrays). */
     public static void sendEntityDestroy(Player target, int... entityIds) {
         if (!target.isOnline()) {
             return;
         }
+        DebugLogger.log("PacketFactory: ENTITY_DESTROY ids=%s para %s", Arrays.toString(entityIds), target.getName());
+
         PacketContainer packet = new PacketContainer(PacketType.Play.Server.ENTITY_DESTROY);
         List<Integer> ids = Arrays.stream(entityIds).boxed().collect(Collectors.toList());
-        packet.getIntLists().write(0, ids);
+        try {
+            packet.getIntLists().write(0, ids);
+        } catch (Exception e) {
+            // Fallback: algumas versoes expoem o campo como int[] em vez de List<Integer>.
+            packet.getIntegerArrays().write(0, entityIds);
+        }
         manager().sendServerPacket(target, packet);
     }
 

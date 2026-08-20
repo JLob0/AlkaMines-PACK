@@ -6,6 +6,7 @@ import com.alka.mines.entity.FakeDragonEntity;
 import com.alka.mines.model.Mine;
 import com.alka.mines.packet.PacketFactory;
 import com.alka.mines.reward.RewardBatcher;
+import com.alka.mines.util.DebugLogger;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -60,28 +61,45 @@ public class DragonBreathTask implements Runnable {
             cancel();
             return;
         }
-        if (!dragon.getCurrentLocation().getWorld().getName().equals(mine.getRegion().getWorld())) {
+
+        // verificacao de mundo mais segura
+        String dragonWorld = dragon.getCurrentLocation().getWorld() != null
+                ? dragon.getCurrentLocation().getWorld().getName() : "";
+        String mineWorld = mine.getRegion().getWorld() != null ? mine.getRegion().getWorld() : "";
+        if (!dragonWorld.equals(mineWorld)) {
+            DebugLogger.log("[Breath] Mundos diferentes: dragao=%s mina=%s", dragonWorld, mineWorld);
             return;
         }
 
         // aproximacao da cabeca do dragao
         Location head = dragon.getCurrentLocation().clone().add(0, 2.5, 0);
-        Vector direction = dragon.getCurrentLocation().getDirection().normalize();
-        int range = plugin.getConfig().getInt("abilities.dragon_breath.breath.range", 25);
+        Location center = mine.getRegion().getCenter();
+        // O bafo deve apontar do dragao em direcao ao centro da mina (para baixo)
+        Vector direction = center.toVector().subtract(head.toVector()).normalize();
+        int range = plugin.getConfig().getInt("abilities.dragon_breath.breath.range", 35);
+        ItemStack tool = player.getInventory().getItemInMainHand();
 
+        DebugLogger.log("[Breath] Tick! Head=%s Center=%s Direction=%s",
+                head.toVector(), center.toVector(), direction);
+
+        int hits = 0;
         for (int i = 0; i < range; i++) {
             Location point = head.clone().add(direction.clone().multiply(i));
             Optional<MineBlockData> found = cache.findBlockAt(mine.getId(), point);
             if (found.isEmpty()) {
                 continue;
             }
+            hits++;
 
-            Location blockLoc = point.getBlock().getLocation();
+            // coordenadas inteiras diretas - evita getBlock().getLocation() desnecessario
+            Location blockLoc = new Location(point.getWorld(), point.getBlockX(), point.getBlockY(), point.getBlockZ());
+            DebugLogger.log("[Breath] Bloco encontrado em %s tipo=%s", point, found.get().originalMaterial());
+
             // quebra visual: envia AIR pro jogador alvo
             PacketFactory.sendBlockChange(player, blockLoc, Material.AIR);
 
             // drops reais (Fortune/Silk via getDrops), acumulados pra venda/entrega em lote
-            Collection<ItemStack> drops = point.getBlock().getDrops(player.getInventory().getItemInMainHand());
+            Collection<ItemStack> drops = blockLoc.getBlock().getDrops(tool);
             for (ItemStack drop : drops) {
                 batcher.addDrop(drop);
             }
@@ -91,6 +109,11 @@ public class DragonBreathTask implements Runnable {
             broadcastBreathParticles(fx);
 
             brokenBlocks.add(blockLoc);
+        }
+
+        if (hits == 0) {
+            DebugLogger.log("[Breath] Nenhum bloco atingido. Range=%d HeadY=%.1f CenterY=%.1f",
+                    range, head.getY(), center.getY());
         }
     }
 

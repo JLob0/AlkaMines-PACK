@@ -12,9 +12,11 @@ import com.alka.mines.trajectory.BezierTrajectory;
 import com.alka.mines.trajectory.TrajectoryFactory;
 import com.alka.mines.trajectory.TrajectoryTask;
 import com.alka.mines.util.ChatUtil;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.util.Vector;
 
 /**
  * Orquestra a habilidade do dragao pra um jogador: spawna o dragao fake, anima numa
@@ -46,22 +48,40 @@ public class DragonBreathAbility {
         this.taskManager = taskManager;
     }
 
-    /** Inicia a habilidade. Retorna false se o jogador ja esta em sessao. */
+    /** Inicia a habilidade. Retorna false se o jogador ja esta em sessao ou sem ProtocolLib. */
     public boolean activate() {
         if (sessionManager.isInSession(player)) {
             return false;
         }
 
+        // ProtocolLib e obrigatorio para as entidades/pacotes client-side.
+        if (Bukkit.getPluginManager().getPlugin("ProtocolLib") == null) {
+            ChatUtil.send(player, "<red>ProtocolLib não está instalado — habilidade indisponível.");
+            return false;
+        }
+
         Location center = mine.getRegion().getCenter();
         double height = plugin.getConfig().getDouble("abilities.dragon_breath.trajectory.height", 40.0);
-        FakeDragonEntity dragon = new FakeDragonEntity(player, center.clone().add(0, height, 0));
-        registry.register(player, dragon);
-        taskManager.registerEntity(dragon);
-        dragon.spawn();
-
         int duration = plugin.getConfig().getInt("abilities.dragon_breath.trajectory.duration-ticks", 200);
         double radius = plugin.getConfig().getDouble("abilities.dragon_breath.trajectory.radius", 30.0);
         BezierTrajectory trajectory = TrajectoryFactory.createCircleAround(center, radius, height, 4);
+
+        // Spawn no ponto t=0 da trajetoria (ja em movimento) com a rotacao inicial.
+        // Tangente normalizada + yaw invertido 180° (o modelo do Ender Dragon e de costas).
+        Vector startPos = trajectory.calculate(0);
+        Vector startTangent = trajectory.getTangent(0).normalize();
+        float[] startRot = BezierTrajectory.getYawPitch(startTangent);
+        startRot[0] = (startRot[0] + 180.0f) % 360.0f;
+        if (startRot[0] < 0) {
+            startRot[0] += 360.0f;
+        }
+        Location spawnLoc = new Location(center.getWorld(),
+                startPos.getX(), startPos.getY(), startPos.getZ(), startRot[0], 0f);
+
+        FakeDragonEntity dragon = new FakeDragonEntity(player, spawnLoc);
+        registry.register(player, dragon);
+        taskManager.registerEntity(dragon);
+        dragon.spawn();
 
         // cria a sessao primeiro (encerra sessao anterior, se houver)
         MineAbilitySession session = sessionManager.startSession(player, mine, dragon, batcher, plugin, cache);
