@@ -168,6 +168,46 @@ public final class PacketFactory {
         manager().sendServerPacket(target, packet);
     }
 
+    /** Efeito completo de quebra visual: som + particula + animacao de stage 9. */
+    public static void sendBlockBreakEffect(Player target, Location location, Material material) {
+        if (!target.isOnline()) {
+            return;
+        }
+        // som de quebra
+        sendNamedSound(target, location, Sound.BLOCK_STONE_BREAK, 1.0f, 1.0f);
+
+        // particula de quebra do material (Particle.BLOCK - antigo BLOCK_CRACK - data = BlockData)
+        PacketContainer particles = new PacketContainer(PacketType.Play.Server.WORLD_PARTICLES);
+        particles.getNewParticles().write(0, WrappedParticle.create(Particle.BLOCK, material.createBlockData()));
+        particles.getIntegers().write(0, 20);
+        particles.getDoubles().write(0, location.getX());
+        particles.getDoubles().write(1, location.getY());
+        particles.getDoubles().write(2, location.getZ());
+        particles.getFloat().write(0, 0.5f);
+        particles.getFloat().write(1, 0.5f);
+        particles.getFloat().write(2, 0.5f);
+        particles.getFloat().write(3, 0f);
+        manager().sendServerPacket(target, particles);
+
+        // animacao de quebra (entityId ficticio, stage 9 = quebra completa)
+        PacketContainer anim = new PacketContainer(PacketType.Play.Server.BLOCK_BREAK_ANIMATION);
+        anim.getIntegers().write(0, target.getEntityId() + 100000);
+        anim.getBlockPositionModifier().write(0,
+                new BlockPosition(location.getBlockX(), location.getBlockY(), location.getBlockZ()));
+        anim.getIntegers().write(1, 9);
+        manager().sendServerPacket(target, anim);
+    }
+
+    /** Envia varias mudancas de bloco de uma vez (loop de sendBlockChange). */
+    public static void sendBulkBlockChanges(Player target, java.util.Map<Location, Material> changes) {
+        if (!target.isOnline()) {
+            return;
+        }
+        for (java.util.Map.Entry<Location, Material> entry : changes.entrySet()) {
+            sendBlockChange(target, entry.getKey(), entry.getValue());
+        }
+    }
+
     /** Particula em uma posicao do mundo, visivel so pro jogador alvo. */
     public static void sendParticle(Player target, Location location, Particle particle, int count,
                                     double offsetX, double offsetY, double offsetZ, double speed) {

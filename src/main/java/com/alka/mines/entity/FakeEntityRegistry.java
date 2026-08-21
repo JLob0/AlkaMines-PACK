@@ -11,11 +11,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
- * Registro de entidades fake por jogador. Garante que, ao deslogar, todas as entidades
- * client-side daquele jogador sejam destruidas (o servidor nao saberia limpar - elas
- * so existem nos pacotes enviados pra ele).
- */
+/** Registro de entidades fake por jogador - destroi tudo no quit. */
 public class FakeEntityRegistry implements Listener {
 
     private final Map<UUID, List<FakeDragonEntity>> entitiesByPlayer = new ConcurrentHashMap<>();
@@ -39,10 +35,6 @@ public class FakeEntityRegistry implements Listener {
                 entity.destroy();
             }
         }
-    }
-
-    public List<FakeDragonEntity> getEntities(Player player) {
-        return entitiesByPlayer.getOrDefault(player.getUniqueId(), List.of());
     }
 
     @EventHandler

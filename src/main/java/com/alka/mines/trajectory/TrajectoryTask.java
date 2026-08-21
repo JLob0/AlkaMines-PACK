@@ -9,12 +9,8 @@ import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
 /**
- * Anima o dragao ao longo de uma BezierTrajectory. Todo o calculo matematico roda em
- * thread ASYNC (via runTaskTimerAsynchronously); apenas o envio do pacote de teleporte
- * e feito sync (via runTask), porque ProtocolLib/PacketFactory exigem a main thread.
- *
- * Ao terminar a trajetoria, destroi o dragao e dispara o callback de conclusao (usado
- * pela habilidade pra encerrar a sessao no MineAbilitySessionManager).
+ * Anima o dragao ao longo da BezierTrajectory: calculo async, envio de pacote sync.
+ * Ao terminar, destroi o dragao e dispara o callback.
  */
 public class TrajectoryTask implements Runnable {
 
@@ -41,9 +37,6 @@ public class TrajectoryTask implements Runnable {
     @Override
     public void run() {
         if (currentTick >= durationTicks) {
-            // Tudo na main thread: destroy (pacotes) + cancel + onComplete. O onComplete
-            // chama endSession -> flush do RewardBatcher -> AlkaDrop, que dispara
-            // DropCollectedEvent (so pode rodar sync) - fora da main thread da crash.
             Bukkit.getScheduler().runTask(plugin, () -> {
                 dragon.destroy();
                 if (bukkitTask != null) {
@@ -53,8 +46,6 @@ public class TrajectoryTask implements Runnable {
             });
             return;
         }
-
-        // Verificacoes ANTES de agendar - evita task desnecessaria se o dragao ja morreu.
         if (!dragon.isSpawned() || !dragon.getTargetPlayer().isOnline()) {
             currentTick++;
             return;
@@ -66,15 +57,11 @@ public class TrajectoryTask implements Runnable {
         float[] rot = BezierTrajectory.getYawPitch(tangent);
         Location newLoc = new Location(world, pos.getX(), pos.getY(), pos.getZ(), rot[0], rot[1]);
 
-        // SO o envio do pacote e sync; todo o calculo acima foi async.
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (dragon.isSpawned() && dragon.getTargetPlayer().isOnline()) {
-                dragon.setRealDirection(tangent);
-                // movimento relativo (REL_ENTITY_MOVE_LOOK) - mais estavel na 1.21.8
                 dragon.teleportRelative(newLoc);
             }
         });
-
         currentTick++;
     }
 
@@ -88,9 +75,5 @@ public class TrajectoryTask implements Runnable {
             bukkitTask.cancel();
         }
         dragon.destroy();
-    }
-
-    public BukkitTask getBukkitTask() {
-        return bukkitTask;
     }
 }
