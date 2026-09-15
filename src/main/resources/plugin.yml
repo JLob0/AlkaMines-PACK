@@ -29,19 +29,19 @@ commands:
 permissions:
   alkamines.minapessoal:
     description: Permite usar /mina e /minapessoal (mina pessoal evolutiva).
-    default: true
+    default: op
   alkamines.picareta:
     description: Permite usar /picareta.
-    default: true
+    default: op
   alkamines.encantamentos:
     description: Permite usar /encantamentos.
-    default: true
+    default: op
   alkamines.prestigio:
     description: Permite usar /prestigio.
-    default: true
+    default: op
   alkamines.alugar:
     description: Permite usar /alugar.
-    default: true
+    default: op
   alkamines.admin:
     description: Permite usar /alkaminesadmin.
     default: op
